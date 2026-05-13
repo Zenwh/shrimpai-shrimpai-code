@@ -411,7 +411,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         autoload: false,
         options: {
           headers: {
-            "HTTP-Referer": "https://opencode.ai/",
+            "HTTP-Referer": "https://shrimpai.cc/",
             "X-Title": "opencode",
             "X-Source": "opencode",
           },
@@ -422,7 +422,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         autoload: false,
         options: {
           headers: {
-            "HTTP-Referer": "https://opencode.ai/",
+            "HTTP-Referer": "https://shrimpai.cc/",
             "X-Title": "opencode",
           },
         },
@@ -432,7 +432,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         autoload: false,
         options: {
           headers: {
-            "HTTP-Referer": "https://opencode.ai/",
+            "HTTP-Referer": "https://shrimpai.cc/",
             "X-Title": "opencode",
           },
         },
@@ -442,7 +442,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         autoload: false,
         options: {
           headers: {
-            "http-referer": "https://opencode.ai/",
+            "http-referer": "https://shrimpai.cc/",
             "x-title": "opencode",
           },
         },
@@ -540,7 +540,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         autoload: false,
         options: {
           headers: {
-            "HTTP-Referer": "https://opencode.ai/",
+            "HTTP-Referer": "https://shrimpai.cc/",
             "X-Title": "opencode",
           },
         },
@@ -825,7 +825,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         autoload: false,
         options: {
           headers: {
-            "HTTP-Referer": "https://opencode.ai/",
+            "HTTP-Referer": "https://shrimpai.cc/",
             "X-Title": "opencode",
           },
         },

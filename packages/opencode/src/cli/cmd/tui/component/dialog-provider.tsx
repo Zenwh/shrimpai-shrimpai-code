@@ -362,18 +362,18 @@ function ApiMethod(props: ApiMethodProps) {
                 key.
               </text>
               <text fg={theme.text}>
-                Go to <span style={{ fg: theme.primary }}>https://opencode.ai/zen</span> to get a key
+                Go to <span style={{ fg: theme.primary }}>https://shrimpai.cc/auth</span> to get a key
               </text>
             </box>
           ),
           "opencode-go": (
             <box gap={1}>
               <text fg={theme.textMuted}>
-                OpenCode Go is a $10 per month subscription that provides reliable access to popular open coding models
+                Shrimpai Code is a $10 per month subscription that provides reliable access to popular open coding models
                 with generous usage limits.
               </text>
               <text fg={theme.text}>
-                Go to <span style={{ fg: theme.primary }}>https://opencode.ai/zen</span> and enable OpenCode Go
+                Go to <span style={{ fg: theme.primary }}>https://shrimpai.cc/auth</span> and enable Shrimpai Code
               </text>
             </box>
           ),

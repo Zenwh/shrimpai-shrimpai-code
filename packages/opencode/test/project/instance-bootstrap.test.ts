@@ -46,7 +46,7 @@ const bootstrapFixture = Effect.gen(function* () {
     Bun.write(
       path.join(dir, "opencode.json"),
       JSON.stringify({
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://shrimpai.cc/code/config.json",
         plugin: [pathToFileURL(pluginFile).href],
       }),
     ),

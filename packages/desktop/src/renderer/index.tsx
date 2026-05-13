@@ -30,6 +30,7 @@ if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
   throw new Error(t("error.dev.rootNotFound"))
 }
 
+// Sentry is gated by VITE_SENTRY_DSN — leave unset to disable, or set to your own Shrimpai DSN.
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
@@ -211,7 +212,7 @@ const createPlatform = (): Platform => {
 
       const notification = new Notification(title, {
         body: description ?? "",
-        icon: "https://opencode.ai/favicon-96x96-v3.png",
+        icon: "https://shrimpai.cc/favicon-96x96.png",
       })
       notification.onclick = () => {
         void window.api.showWindow()

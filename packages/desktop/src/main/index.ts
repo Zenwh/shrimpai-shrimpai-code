@@ -39,14 +39,14 @@ import { checkUpdate, checkForUpdates, installUpdate, setupAutoUpdater } from ".
 import { Deferred, Effect, Fiber } from "effect"
 
 const APP_NAMES: Record<string, string> = {
-  dev: "OpenCode Dev",
-  beta: "OpenCode Beta",
-  prod: "OpenCode",
+  dev: "Shrimpai Code Dev",
+  beta: "Shrimpai Code Beta",
+  prod: "Shrimpai Code",
 }
 const APP_IDS: Record<string, string> = {
-  dev: "ai.opencode.desktop.dev",
-  beta: "ai.opencode.desktop.beta",
-  prod: "ai.opencode.desktop",
+  dev: "cc.shrimpai.code.dev",
+  beta: "cc.shrimpai.code.beta",
+  prod: "cc.shrimpai.code",
 }
 const TEST_ONBOARDING = process.env.OPENCODE_TEST_ONBOARDING === "1"
 
@@ -133,8 +133,16 @@ const main = Effect.gen(function* () {
     process.env.XDG_STATE_HOME = join(root, "state")
     return root
   })()
-  app.setName(app.isPackaged ? APP_NAMES[CHANNEL] : "OpenCode Dev")
+  app.setName(app.isPackaged ? APP_NAMES[CHANNEL] : "Shrimpai Code Dev")
   app.setAppUserModelId(appId)
+  if (process.platform === "darwin") {
+    app.setAboutPanelOptions({
+      applicationName: APP_NAMES[CHANNEL] ?? "Shrimpai Code",
+      applicationVersion: app.getVersion(),
+      copyright: "© Shrimpai. Based on opencode (MIT, © 2025 opencode).",
+      website: "https://shrimpai.cc/code",
+    })
+  }
   app.setPath(
     "userData",
     onboardingTestRoot ? join(onboardingTestRoot, "desktop") : join(app.getPath("appData"), appId),

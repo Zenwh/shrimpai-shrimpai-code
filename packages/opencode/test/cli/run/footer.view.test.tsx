@@ -51,7 +51,7 @@ function model(input: {
     providerID: "opencode",
     api: {
       id: "opencode",
-      url: "https://opencode.ai",
+      url: "https://shrimpai.cc/code",
       npm: "@ai-sdk/openai-compatible",
     },
     name: input.name,

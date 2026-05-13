@@ -4,10 +4,10 @@
   "version": "1.14.48",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://opencode.ai",
+  "homepage": "https://shrimpai.cc/code",
   "author": {
-    "name": "OpenCode",
-    "email": "hello@opencode.ai"
+    "name": "Shrimpai",
+    "email": "hello@shrimpai.cc"
   },
   "scripts": {
     "typecheck": "tsgo -b",

@@ -21,13 +21,13 @@ async function signWindows(configuration: { path: string }) {
 }
 
 const channel = (() => {
-  const raw = process.env.OPENCODE_CHANNEL
+  const raw = process.env.SHRIMPAI_CHANNEL || process.env.OPENCODE_CHANNEL
   if (raw === "dev" || raw === "beta" || raw === "prod") return raw
   return "dev"
 })()
 
 const getBase = (): Configuration => ({
-  artifactName: "opencode-desktop-${os}-${arch}.${ext}",
+  artifactName: "shrimpai-code-${os}-${arch}.${ext}",
   directories: {
     output: "dist",
     buildResources: "resources",
@@ -54,8 +54,8 @@ const getBase = (): Configuration => ({
     sign: true,
   },
   protocols: {
-    name: "OpenCode",
-    schemes: ["opencode"],
+    name: "Shrimpai Code",
+    schemes: ["shrimpai"],
   },
   win: {
     icon: `resources/icons/icon.ico`,
@@ -85,29 +85,29 @@ function getConfig() {
     case "dev": {
       return {
         ...base,
-        appId: "ai.opencode.desktop.dev",
-        productName: "OpenCode Dev",
-        rpm: { packageName: "opencode-dev" },
+        appId: "cc.shrimpai.code.dev",
+        productName: "Shrimpai Code Dev",
+        rpm: { packageName: "shrimpai-code-dev" },
       }
     }
     case "beta": {
       return {
         ...base,
-        appId: "ai.opencode.desktop.beta",
-        productName: "OpenCode Beta",
-        protocols: { name: "OpenCode Beta", schemes: ["opencode"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "opencode-beta", channel: "latest" },
-        rpm: { packageName: "opencode-beta" },
+        appId: "cc.shrimpai.code.beta",
+        productName: "Shrimpai Code Beta",
+        protocols: { name: "Shrimpai Code Beta", schemes: ["shrimpai"] },
+        publish: { provider: "github", owner: "Zenwh", repo: "shrimpai-shrimpai-code", channel: "beta" },
+        rpm: { packageName: "shrimpai-code-beta" },
       }
     }
     case "prod": {
       return {
         ...base,
-        appId: "ai.opencode.desktop",
-        productName: "OpenCode",
-        protocols: { name: "OpenCode", schemes: ["opencode"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "opencode", channel: "latest" },
-        rpm: { packageName: "opencode" },
+        appId: "cc.shrimpai.code",
+        productName: "Shrimpai Code",
+        protocols: { name: "Shrimpai Code", schemes: ["shrimpai"] },
+        publish: { provider: "github", owner: "Zenwh", repo: "shrimpai-shrimpai-code", channel: "latest" },
+        rpm: { packageName: "shrimpai-code" },
       }
     }
   }
