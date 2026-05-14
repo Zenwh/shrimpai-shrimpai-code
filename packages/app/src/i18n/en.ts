@@ -194,8 +194,6 @@ export const dict = {
   "provider.custom.error.baseURL.format": "Must start with http:// or https://",
   "provider.custom.error.required": "Required",
   "provider.custom.error.duplicate": "Duplicate",
-  "provider.custom.error.detect.required": "Detect models first",
-  "provider.custom.error.detect.noneSelected": "Select at least one model",
 
   "provider.disconnect.toast.disconnected.title": "{{provider}} disconnected",
   "provider.disconnect.toast.disconnected.description": "{{provider}} models are no longer available.",
