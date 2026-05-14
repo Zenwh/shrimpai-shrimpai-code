@@ -422,6 +422,17 @@ export function DialogConnectProvider(props: { provider: string }) {
     return (
       <div class="flex flex-col gap-6">
         <Switch>
+          <Match when={provider().id === "shrimpai"}>
+            <div class="flex flex-col gap-4">
+              <div class="text-14-regular text-text-base">
+                Sign in at{" "}
+                <Link href="https://shrimpai.cc/auth" tabIndex={-1}>
+                  shrimpai.cc
+                </Link>{" "}
+                and copy your API key to access GPT, Claude, KIMI, GLM and more — billed through a single subscription.
+              </div>
+            </div>
+          </Match>
           <Match when={provider().id === "opencode"}>
             <div class="flex flex-col gap-4">
               <div class="text-14-regular text-text-base">{language.t("provider.connect.opencodeZen.line1")}</div>

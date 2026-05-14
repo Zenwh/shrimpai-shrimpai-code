@@ -183,6 +183,9 @@ export const SettingsProviders: Component = () => {
                     <div class="flex items-center gap-x-3">
                       <ProviderIcon id={item.id} class="size-5 shrink-0 icon-strong-base" />
                       <span class="text-14-medium text-text-strong">{item.name}</span>
+                      <Show when={item.id === "shrimpai"}>
+                        <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
+                      </Show>
                       <Show when={item.id === "opencode"}>
                         <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
                       </Show>
