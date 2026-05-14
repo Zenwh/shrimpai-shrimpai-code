@@ -11,6 +11,7 @@ import { type LanguageModelV3 } from "@ai-sdk/provider"
 import * as ModelsDev from "./models"
 import { Auth } from "../auth"
 import { Env } from "../env"
+import { getShrimpaiModelsDevProvider, SHRIMPAI_PROVIDER_ID } from "./shrimpai-builtin"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { NamedError } from "@opencode-ai/core/util/error"
@@ -1117,6 +1118,12 @@ const layer: Layer.Layer<
         const bridge = yield* EffectBridge.make()
         const cfg = yield* config.get()
         const modelsDev = yield* modelsDevSvc.get()
+        // Inject built-in Shrimpai provider into the catalog so its models
+        // appear in the UI. Mounting (= "connected") still requires the user
+        // to add an API key via auth — this is just the catalog entry.
+        if (!modelsDev[SHRIMPAI_PROVIDER_ID]) {
+          modelsDev[SHRIMPAI_PROVIDER_ID] = getShrimpaiModelsDevProvider()
+        }
         const database = mapValues(modelsDev, fromModelsDevProvider)
 
         const providers: Record<ProviderID, Info> = {} as Record<ProviderID, Info>

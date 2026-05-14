@@ -9,7 +9,6 @@ import { NamedError } from "@opencode-ai/core/util/error"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { Auth } from "../auth"
 import { Env } from "../env"
-import { getShrimpaiProviderDefinition, SHRIMPAI_PROVIDER_ID } from "../provider/shrimpai-builtin"
 import { applyEdits, modify } from "jsonc-parser"
 import { type InstanceContext } from "../project/instance"
 import { InstallationLocal, InstallationVersion } from "@opencode-ai/core/installation/version"
@@ -511,19 +510,6 @@ export const layer = Layer.effect(
           result = mergeConfigConcatArrays(result, next)
           return mergePluginOrigins(source, next.plugin, kind)
         }
-
-        // Seed built-in Shrimpai provider before any user config loads.
-        // This makes shrimpai.cc/v1 available out of the box; users can still
-        // override baseURL / models / disabled in their opencode.json.
-        yield* merge(
-          "<shrimpai-builtin>",
-          {
-            provider: {
-              [SHRIMPAI_PROVIDER_ID]: getShrimpaiProviderDefinition() as any,
-            },
-          },
-          "global",
-        )
 
         for (const [key, value] of Object.entries(auth)) {
           if (value.type === "wellknown") {

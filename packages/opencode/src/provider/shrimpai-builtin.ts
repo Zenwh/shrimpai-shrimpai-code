@@ -1,11 +1,16 @@
+import * as ModelsDev from "./models"
+
 /**
  * Built-in Shrimpai provider definition.
- * Merged into Config.provider before user config loads, so users can override
- * baseURL / models / etc. without us pre-seeding their opencode.json on disk.
  *
- * The shape matches ConfigProvider.Info from packages/opencode/src/config/provider.ts.
+ * Injected into the ModelsDev database BEFORE provider mounting decisions
+ * are made (see provider.ts state init). This means:
+ *   - shrimpai shows up in the model/provider catalog with all models listed
+ *   - it is NOT mounted (= not "connected") until the user adds an API key
+ *     via auth flow (Settings → Providers → Connect)
  *
- * Wire-up: see packages/opencode/src/config/config.ts → loadInstanceState (initial merge).
+ * Do NOT seed this through Config.provider — that would mark the provider
+ * as source:"config" and the UI would treat it as already connected.
  */
 export const SHRIMPAI_PROVIDER_ID = "shrimpai"
 
@@ -13,22 +18,15 @@ export const SHRIMPAI_BASE_URL = "https://shrimpai.cc/v1"
 
 type ModelDef = {
   name: string
-  // Anthropic / OpenAI both bill ~per million-token. Use $/Mtok throughout.
   cost?: { input: number; output: number; cache_read?: number; cache_write?: number }
-  limit?: { context: number; output: number }
+  limit: { context: number; output: number }
   reasoning?: boolean
   attachment?: boolean
-  modalities?: { input?: string[]; output?: string[] }
+  modalities?: { input?: ("text" | "audio" | "image" | "video" | "pdf")[]; output?: ("text" | "audio" | "image" | "video" | "pdf")[] }
 }
 
-/**
- * Curated list of models we promise to expose on shrimpai.cc/v1.
- * - Identifiers MUST match what New API exposes (channel models field).
- * - Marketing names live in the desktop UI; these are the wire IDs.
- * - Costs are user-facing display only; real billing is on the gateway side.
- */
-export const SHRIMPAI_MODELS: Record<string, ModelDef> = {
-  // OpenAI flagship — verified present in New API (channel id=6)
+const SHRIMPAI_MODELS: Record<string, ModelDef> = {
+  // OpenAI
   "gpt-5.1": {
     name: "GPT-5.1",
     cost: { input: 1.25, output: 10 },
@@ -86,8 +84,7 @@ export const SHRIMPAI_MODELS: Record<string, ModelDef> = {
     modalities: { input: ["text"], output: ["text"] },
   },
 
-  // Anthropic — pending gateway channel (Phase 2-1). Listed so the UI shows them.
-  // Wire IDs MUST match Anthropic naming; New API channel will resolve them.
+  // Anthropic
   "claude-opus-4-7": {
     name: "Claude Opus 4.7",
     cost: { input: 15, output: 75, cache_read: 1.5, cache_write: 18.75 },
@@ -112,7 +109,7 @@ export const SHRIMPAI_MODELS: Record<string, ModelDef> = {
     modalities: { input: ["text", "image"], output: ["text"] },
   },
 
-  // Moonshot KIMI — wire IDs match official Moonshot API
+  // Moonshot KIMI
   "kimi-k2-turbo-preview": {
     name: "KIMI K2 Turbo",
     cost: { input: 1.1, output: 4.4 },
@@ -133,7 +130,7 @@ export const SHRIMPAI_MODELS: Record<string, ModelDef> = {
     modalities: { input: ["text"], output: ["text"] },
   },
 
-  // ZhipuAI GLM — wire IDs match official Zhipu open.bigmodel.cn naming
+  // Zhipu GLM
   "glm-4.6": {
     name: "GLM-4.6",
     cost: { input: 0.6, output: 2.2 },
@@ -165,30 +162,42 @@ export const SHRIMPAI_MODELS: Record<string, ModelDef> = {
   },
 }
 
-/**
- * Returns a ConfigProvider.Info-shaped object suitable for merging into Config.provider.
- * Generated lazily (don't reference Effect/Schema here — this is a plain data layer).
- */
-export function getShrimpaiProviderDefinition() {
+function buildModel(id: string, def: ModelDef): ModelsDev.Model {
   return {
+    id,
+    name: def.name,
+    release_date: "2026-01-01",
+    attachment: def.attachment ?? false,
+    reasoning: def.reasoning ?? false,
+    temperature: !def.reasoning,
+    tool_call: true,
+    ...(def.cost ? { cost: { input: def.cost.input, output: def.cost.output, cache_read: def.cost.cache_read, cache_write: def.cost.cache_write } } : {}),
+    limit: { context: def.limit.context, output: def.limit.output },
+    ...(def.modalities
+      ? {
+          modalities: {
+            input: def.modalities.input ?? ["text"],
+            output: def.modalities.output ?? ["text"],
+          },
+        }
+      : {}),
+  } as ModelsDev.Model
+}
+
+/**
+ * The shrimpai entry that gets merged into the ModelsDev database at
+ * provider state init. env=["SHRIMPAI_API_KEY"] gives users an env-var
+ * escape hatch; the primary flow is auth (api key entered through UI).
+ */
+export function getShrimpaiModelsDevProvider(): ModelsDev.Provider {
+  return {
+    id: SHRIMPAI_PROVIDER_ID,
     name: "Shrimpai",
-    npm: "@ai-sdk/openai-compatible",
     api: SHRIMPAI_BASE_URL,
-    options: {
-      baseURL: SHRIMPAI_BASE_URL,
-    },
+    npm: "@ai-sdk/openai-compatible",
+    env: ["SHRIMPAI_API_KEY"],
     models: Object.fromEntries(
-      Object.entries(SHRIMPAI_MODELS).map(([id, def]) => [
-        id,
-        {
-          name: def.name,
-          ...(def.cost ? { cost: def.cost } : {}),
-          ...(def.limit ? { limit: def.limit } : {}),
-          ...(def.reasoning ? { reasoning: def.reasoning } : {}),
-          ...(def.attachment ? { attachment: def.attachment } : {}),
-          ...(def.modalities ? { modalities: def.modalities } : {}),
-        },
-      ]),
+      Object.entries(SHRIMPAI_MODELS).map(([id, def]) => [id, buildModel(id, def)]),
     ),
   }
 }
