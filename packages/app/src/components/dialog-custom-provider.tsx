@@ -135,10 +135,9 @@ export function DialogCustomProvider(props: Props) {
   })
   const selectedCount = createMemo(() => form.detected.filter((m) => m.selected).length)
 
-  const toggleSelected = (idx: number) => {
-    const item = form.detected[idx]
-    if (!item) return
-    setForm("detected", idx, "selected", !item.selected)
+  const setSelected = (idx: number, value: boolean) => {
+    if (idx < 0 || idx >= form.detected.length) return
+    setForm("detected", idx, "selected", value)
   }
 
   const setAllSelected = (value: boolean) => {
@@ -336,16 +335,18 @@ export function DialogCustomProvider(props: Props) {
                   {(m) => {
                     const idx = () => form.detected.findIndex((d) => d.id === m.id)
                     return (
-                      <div class="flex items-center gap-3" data-row={m.id}>
-                        <Checkbox checked={m.selected} onChange={() => toggleSelected(idx())}>
-                          <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
-                            <span class="text-14-regular break-all text-text-strong">{m.id}</span>
-                            <Show when={m.note}>
-                              <span class="text-12-regular text-text-weak">— {m.note}</span>
-                            </Show>
-                          </div>
-                        </Checkbox>
-                      </div>
+                      <Checkbox
+                        checked={m.selected}
+                        onChange={(next) => setSelected(idx(), next)}
+                        data-row={m.id}
+                      >
+                        <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0">
+                          <span class="text-14-regular break-all text-text-strong">{m.id}</span>
+                          <Show when={m.note}>
+                            <span class="text-12-regular text-text-weak">— {m.note}</span>
+                          </Show>
+                        </div>
+                      </Checkbox>
                     )
                   }}
                 </For>
