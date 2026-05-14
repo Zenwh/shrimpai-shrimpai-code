@@ -422,7 +422,24 @@ function createGlobalSync() {
 
   const updateConfigMutation = useMutation(() => ({
     mutationFn: (config: Config) => globalSDK.client.global.config.update({ config }),
-    onSuccess: () => bootstrap.refetch(),
+    onSuccess: () => {
+      // Refresh the global queries AND every per-directory provider/config cache.
+      // The provider picker reads from per-directory child stores, and
+      // `bootstrap.refetch()` alone only updates the top-level cache keys.
+      void bootstrap.refetch()
+      void queryClient.invalidateQueries({
+        predicate: (q) => {
+          if (!Array.isArray(q.queryKey)) return false
+          // Global keys are single-element: ["config"], ["project"]
+          if (q.queryKey.length === 1) {
+            return q.queryKey[0] === "config"
+          }
+          // Directory-scoped keys are [<dir>, "<name>"]
+          const tail = q.queryKey[q.queryKey.length - 1]
+          return tail === "providers" || tail === "config"
+        },
+      })
+    },
   }))
 
   return {
