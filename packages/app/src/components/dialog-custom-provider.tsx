@@ -38,6 +38,7 @@ export function DialogCustomProvider(props: Props) {
     baseURL: "",
     apiKey: "",
     detected: [],
+    filter: "",
     detectStatus: "idle",
     detectError: undefined,
     headers: [headerRow()],
@@ -80,6 +81,7 @@ export function DialogCustomProvider(props: Props) {
           setForm("detectStatus", "idle")
           setForm("detected", [])
           setForm("detectError", undefined)
+          setForm("filter", "")
         }
       }
       if (key !== "apiKey") setForm("err", key, undefined)
@@ -126,25 +128,30 @@ export function DialogCustomProvider(props: Props) {
     })
   }
 
+  const visibleModels = createMemo(() => {
+    const q = form.filter.trim().toLowerCase()
+    if (!q) return form.detected
+    return form.detected.filter((m) => m.id.toLowerCase().includes(q))
+  })
+  const selectedCount = createMemo(() => form.detected.filter((m) => m.selected).length)
+
   const toggleSelected = (idx: number) => {
     const item = form.detected[idx]
-    if (!item || !item.chatSupported) return
+    if (!item) return
     setForm("detected", idx, "selected", !item.selected)
   }
 
   const setAllSelected = (value: boolean) => {
+    const visible = new Set(visibleModels().map((m) => m.id))
     setForm(
       "detected",
       produce((arr) => {
         for (const m of arr) {
-          if (m.chatSupported) m.selected = value
+          if (visible.has(m.id)) m.selected = value
         }
       }),
     )
   }
-
-  const supportedCount = createMemo(() => form.detected.filter((m) => m.chatSupported).length)
-  const selectedCount = createMemo(() => form.detected.filter((m) => m.selected && m.chatSupported).length)
 
   const validate = () => {
     const output = validateCustomProvider({
@@ -274,13 +281,13 @@ export function DialogCustomProvider(props: Props) {
           <div class="flex flex-col gap-3">
             <div class="flex items-center justify-between gap-3 flex-wrap">
               <label class="text-12-medium text-text-weak">Models</label>
-              <Show when={form.detectStatus === "ok" && supportedCount() > 1}>
+              <Show when={form.detectStatus === "ok" && form.detected.length > 1}>
                 <div class="flex gap-3">
                   <Button type="button" size="small" variant="ghost" onClick={() => setAllSelected(true)}>
-                    Select all
+                    Select all{form.filter.trim() ? " (filtered)" : ""}
                   </Button>
                   <Button type="button" size="small" variant="ghost" onClick={() => setAllSelected(false)}>
-                    Clear
+                    Clear{form.filter.trim() ? " (filtered)" : ""}
                   </Button>
                 </div>
               </Show>
@@ -313,40 +320,38 @@ export function DialogCustomProvider(props: Props) {
             </Show>
 
             <Show when={form.detectStatus === "ok" && form.detected.length > 0}>
+              <TextField
+                label="Filter models"
+                hideLabel
+                placeholder={`Filter ${form.detected.length} models…`}
+                value={form.filter}
+                onChange={(v) => setForm("filter", v)}
+              />
               <div class="text-12-regular text-text-weak">
-                Found {form.detected.length} model{form.detected.length === 1 ? "" : "s"} ({selectedCount()} selected
-                {supportedCount() < form.detected.length
-                  ? `, ${form.detected.length - supportedCount()} unsupported`
-                  : ""}
-                )
+                {selectedCount()} of {form.detected.length} selected
+                {form.filter.trim() ? ` · ${visibleModels().length} match filter` : ""}
               </div>
               <div class="flex flex-col gap-2 max-h-64 overflow-y-auto border border-border-weak-base rounded-md p-3">
-                <For each={form.detected}>
-                  {(m, i) => (
-                    <div class="flex items-center gap-3" data-row={m.id}>
-                      <Checkbox
-                        checked={m.selected}
-                        readOnly={!m.chatSupported}
-                        onChange={() => toggleSelected(i())}
-                      >
-                        <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
-                          <span
-                            class="text-14-regular break-all"
-                            classList={{
-                              "text-text-strong": m.chatSupported,
-                              "text-text-weak": !m.chatSupported,
-                            }}
-                          >
-                            {m.id}
-                          </span>
-                          <Show when={!m.chatSupported && m.reason}>
-                            <span class="text-12-regular text-text-weak">— {m.reason}</span>
-                          </Show>
-                        </div>
-                      </Checkbox>
-                    </div>
-                  )}
+                <For each={visibleModels()}>
+                  {(m) => {
+                    const idx = () => form.detected.findIndex((d) => d.id === m.id)
+                    return (
+                      <div class="flex items-center gap-3" data-row={m.id}>
+                        <Checkbox checked={m.selected} onChange={() => toggleSelected(idx())}>
+                          <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
+                            <span class="text-14-regular break-all text-text-strong">{m.id}</span>
+                            <Show when={m.note}>
+                              <span class="text-12-regular text-text-weak">— {m.note}</span>
+                            </Show>
+                          </div>
+                        </Checkbox>
+                      </div>
+                    )
+                  }}
                 </For>
+                <Show when={visibleModels().length === 0}>
+                  <p class="text-12-regular text-text-weak">No models match the filter.</p>
+                </Show>
               </div>
             </Show>
 

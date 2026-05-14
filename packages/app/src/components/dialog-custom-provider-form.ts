@@ -1,5 +1,6 @@
 const PROVIDER_ID = /^[a-z0-9][a-z0-9-_]*$/
 const OPENAI_COMPATIBLE = "@ai-sdk/openai-compatible"
+const ANTHROPIC = "@ai-sdk/anthropic"
 
 type Translator = (key: string, vars?: Record<string, string | number | boolean>) => string
 
@@ -17,15 +18,21 @@ export type HeaderRow = {
 
 /**
  * One model returned by the upstream `/v1/models` endpoint.
- * `chatSupported` distinguishes models we can actually drive through
- * @ai-sdk/openai-compatible (chat completions) from things like
- * Anthropic-only or embedding-only models.
+ *
+ * `npm` is the AI SDK package OpenCode will use at request time:
+ *   - "@ai-sdk/openai-compatible" routes to `<base>/chat/completions`
+ *   - "@ai-sdk/anthropic" routes to `<base>/messages`
+ *
+ * Inferred from the response shape (typically a `support_apis` array on
+ * distributor APIs like stepcode.basemind.com). When the upstream doesn't
+ * advertise capabilities we default to openai-compatible — the broadest
+ * common denominator for a `/v1/models` endpoint.
  */
 export type DetectedModel = {
   id: string
   selected: boolean
-  chatSupported: boolean
-  reason?: string
+  npm: string
+  note?: string
 }
 
 export type FormState = {
@@ -34,6 +41,7 @@ export type FormState = {
   baseURL: string
   apiKey: string
   detected: DetectedModel[]
+  filter: string
   detectStatus: "idle" | "loading" | "ok" | "error"
   detectError?: string
   headers: HeaderRow[]
@@ -81,7 +89,7 @@ export function validateCustomProvider(input: ValidateArgs) {
       ? input.t("provider.custom.error.providerID.exists")
       : undefined
 
-  const selectedModels = input.form.detected.filter((m) => m.selected && m.chatSupported)
+  const selectedModels = input.form.detected.filter((m) => m.selected)
   const detectedError =
     input.form.detectStatus !== "ok"
       ? input.t("provider.custom.error.detect.required")
@@ -89,7 +97,15 @@ export function validateCustomProvider(input: ValidateArgs) {
         ? input.t("provider.custom.error.detect.noneSelected")
         : undefined
 
-  const modelConfig = Object.fromEntries(selectedModels.map((m) => [m.id, { name: m.id }]))
+  // Per-model `provider.npm` override lets the SDK selection happen at request
+  // time without us touching protocol bodies. Only emit it when the model
+  // deviates from the provider-level default (openai-compatible).
+  const modelConfig = Object.fromEntries(
+    selectedModels.map((m) => [
+      m.id,
+      m.npm === OPENAI_COMPATIBLE ? { name: m.id } : { name: m.id, provider: { npm: m.npm } },
+    ]),
+  )
 
   const seenHeaders = new Set<string>()
   const headers = input.form.headers.map((h) => {
@@ -154,16 +170,38 @@ const nextRow = () => `row-${row++}`
 export const headerRow = (): HeaderRow => ({ row: nextRow(), key: "", value: "", err: {} })
 
 /**
- * Probe `<baseURL>/models` and return what's available.
+ * Inspect upstream-advertised api capabilities and pick the SDK that handles
+ * them. We never convert protocols — at request time OpenCode dispatches via
+ * the SDK named here, so the wire format matches the upstream's contract.
  *
- * - Standard OpenAI servers return `{data: [{id, ...}]}` — every model is
- *   chat-compatible by convention (we may downgrade some by id heuristics).
- * - Some distributors include a `support_apis` array; if present, we only
- *   mark a model as chat-compatible when it advertises `chat`. Examples seen
- *   in the wild: stepcode.basemind.com tags Anthropic-only models without
- *   `chat`, which would fail here without this filter.
+ *   chat / completions / responses    → openai-compatible  (`/chat/completions`)
+ *   claude_native                     → anthropic          (`/messages`)
  *
- * Returns DetectedModel[] sorted: chat-supported (+selected) first.
+ * When the upstream lists both, prefer openai-compatible (it's what most of
+ * our other models use, so cache behavior and tool schemas are more uniform).
+ * When the upstream gives no capability hint at all, default to
+ * openai-compatible — the broadest /v1/models convention.
+ */
+function inferNpm(apiIds: string[]): { npm: string; note?: string } {
+  const hasChat = apiIds.some((id) => id === "chat" || id === "completions" || id === "responses")
+  const hasAnthropic = apiIds.includes("claude_native")
+  if (hasChat) return { npm: OPENAI_COMPATIBLE }
+  if (hasAnthropic) return { npm: ANTHROPIC, note: "Anthropic protocol" }
+  return { npm: OPENAI_COMPATIBLE, note: apiIds.length ? `Unknown api: ${apiIds.join(", ")}` : undefined }
+}
+
+/**
+ * Probe `<baseURL>/models` and return what the server advertises.
+ *
+ * Standard OpenAI servers return `{data: [{id, ...}]}` with no protocol hint
+ * — every model is assumed openai-compatible.
+ *
+ * Distributor APIs (stepcode.basemind.com et al.) include a `support_apis`
+ * array per model; we use that to pick the SDK per model so Claude models
+ * route through @ai-sdk/anthropic at request time without any conversion.
+ *
+ * Models are returned in detection order (no auto-selection — the caller
+ * shows checkboxes and lets the user opt in).
  */
 export async function detectModels(args: {
   baseURL: string
@@ -209,27 +247,14 @@ export async function detectModels(args: {
     .filter((it) => it && typeof it.id === "string")
     .map((it) => {
       const supportApis: unknown = it.support_apis
-      let chatSupported = true
-      let reason: string | undefined
-      if (Array.isArray(supportApis)) {
-        const ids = supportApis
-          .map((a: any) => (typeof a === "string" ? a : a?.id))
-          .filter((s): s is string => typeof s === "string")
-        if (ids.length > 0) {
-          chatSupported = ids.includes("chat") || ids.includes("completions")
-          if (!chatSupported) {
-            const human = ids.includes("claude_native")
-              ? "Anthropic-only (use Anthropic protocol)"
-              : `Only ${ids.join(", ")} supported`
-            reason = human
-          }
-        }
-      }
-      return { id: it.id, selected: chatSupported, chatSupported, reason }
+      const apiIds = Array.isArray(supportApis)
+        ? supportApis
+            .map((a: any) => (typeof a === "string" ? a : a?.id))
+            .filter((s): s is string => typeof s === "string")
+        : []
+      const { npm, note } = inferNpm(apiIds)
+      return { id: it.id, selected: false, npm, note }
     })
-  models.sort((a, b) => {
-    if (a.chatSupported !== b.chatSupported) return a.chatSupported ? -1 : 1
-    return a.id.localeCompare(b.id)
-  })
   return { ok: true, models }
 }
+

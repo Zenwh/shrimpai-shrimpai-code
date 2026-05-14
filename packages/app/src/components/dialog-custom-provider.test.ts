@@ -3,67 +3,78 @@ import { detectModels, validateCustomProvider } from "./dialog-custom-provider-f
 
 const t = (key: string) => key
 
+const baseForm = (overrides: Partial<Parameters<typeof validateCustomProvider>[0]["form"]>) => ({
+  providerID: "p",
+  name: "P",
+  baseURL: "https://api.example.com",
+  apiKey: "k",
+  detected: [],
+  filter: "",
+  detectStatus: "idle" as const,
+  detectError: undefined,
+  headers: [{ row: "h0", key: "", value: "", err: {} }],
+  err: {},
+  ...overrides,
+})
+
 describe("validateCustomProvider", () => {
-  test("builds payload from detected+selected models, trimming whitespace", () => {
+  test("openai-compatible model has no per-model provider override", () => {
     const result = validateCustomProvider({
-      form: {
-        providerID: "custom-provider",
-        name: " Custom Provider ",
-        baseURL: "https://api.example.com ",
-        apiKey: " {env: CUSTOM_PROVIDER_KEY} ",
+      form: baseForm({
+        providerID: "stepcode",
+        name: "Stepcode",
+        baseURL: "https://stepcode.basemind.com/v1",
+        apiKey: "sk-xxx",
         detected: [
-          { id: "model-a", selected: true, chatSupported: true },
-          { id: "model-b", selected: false, chatSupported: true },
-          { id: "model-c-anthropic", selected: true, chatSupported: false, reason: "Anthropic-only" },
+          { id: "gpt-5.5-qianli", selected: true, npm: "@ai-sdk/openai-compatible" },
+          { id: "claude-opus-4-7-qianli", selected: true, npm: "@ai-sdk/anthropic", note: "Anthropic protocol" },
         ],
         detectStatus: "ok",
-        detectError: undefined,
-        headers: [
-          { row: "h0", key: " X-Test ", value: " enabled ", err: {} },
-          { row: "h1", key: "", value: "", err: {} },
-        ],
-        err: {},
-      },
+      }),
       t,
       disabledProviders: [],
       existingProviderIDs: new Set(),
     })
-
-    // chat-unsupported models are dropped even if selected
-    expect(result.result).toEqual({
-      providerID: "custom-provider",
-      name: "Custom Provider",
-      key: undefined,
-      config: {
-        npm: "@ai-sdk/openai-compatible",
-        name: "Custom Provider",
-        env: ["CUSTOM_PROVIDER_KEY"],
-        options: {
-          baseURL: "https://api.example.com",
-          headers: {
-            "X-Test": "enabled",
-          },
-        },
-        models: {
-          "model-a": { name: "model-a" },
-        },
+    expect(result.result?.config.models).toEqual({
+      "gpt-5.5-qianli": { name: "gpt-5.5-qianli" },
+      "claude-opus-4-7-qianli": {
+        name: "claude-opus-4-7-qianli",
+        provider: { npm: "@ai-sdk/anthropic" },
       },
+    })
+    // provider-level npm stays openai-compatible
+    expect(result.result?.config.npm).toBe("@ai-sdk/openai-compatible")
+  })
+
+  test("trims whitespace and supports {env:VAR} key form", () => {
+    const result = validateCustomProvider({
+      form: baseForm({
+        providerID: "custom-provider",
+        name: " Custom ",
+        baseURL: "https://api.example.com ",
+        apiKey: " {env: CUSTOM_KEY} ",
+        detected: [{ id: "model-a", selected: true, npm: "@ai-sdk/openai-compatible" }],
+        detectStatus: "ok",
+        headers: [
+          { row: "h0", key: " X-Test ", value: " enabled ", err: {} },
+          { row: "h1", key: "", value: "", err: {} },
+        ],
+      }),
+      t,
+      disabledProviders: [],
+      existingProviderIDs: new Set(),
+    })
+    expect(result.result?.key).toBeUndefined()
+    expect(result.result?.config.env).toEqual(["CUSTOM_KEY"])
+    expect(result.result?.config.options).toEqual({
+      baseURL: "https://api.example.com",
+      headers: { "X-Test": "enabled" },
     })
   })
 
-  test("rejects when no models detected yet", () => {
+  test("rejects when detection not run", () => {
     const result = validateCustomProvider({
-      form: {
-        providerID: "p",
-        name: "P",
-        baseURL: "https://api.example.com",
-        apiKey: "k",
-        detected: [],
-        detectStatus: "idle",
-        detectError: undefined,
-        headers: [{ row: "h0", key: "", value: "", err: {} }],
-        err: {},
-      },
+      form: baseForm({}),
       t,
       disabledProviders: [],
       existingProviderIDs: new Set(),
@@ -72,19 +83,12 @@ describe("validateCustomProvider", () => {
     expect(result.err.detected).toBe("provider.custom.error.detect.required")
   })
 
-  test("rejects when detection succeeded but nothing selected", () => {
+  test("rejects when no model selected", () => {
     const result = validateCustomProvider({
-      form: {
-        providerID: "p",
-        name: "P",
-        baseURL: "https://api.example.com",
-        apiKey: "k",
-        detected: [{ id: "model-a", selected: false, chatSupported: true }],
+      form: baseForm({
+        detected: [{ id: "model-a", selected: false, npm: "@ai-sdk/openai-compatible" }],
         detectStatus: "ok",
-        detectError: undefined,
-        headers: [{ row: "h0", key: "", value: "", err: {} }],
-        err: {},
-      },
+      }),
       t,
       disabledProviders: [],
       existingProviderIDs: new Set(),
@@ -95,44 +99,34 @@ describe("validateCustomProvider", () => {
 })
 
 describe("detectModels", () => {
-  test("parses OpenAI-style response and marks all chatSupported by default", async () => {
-    const fetchMock = (..._: any[]) =>
+  test("defaults to openai-compatible when no support_apis hint", async () => {
+    const fetchMock = () =>
       Promise.resolve(
-        new Response(
-          JSON.stringify({
-            data: [
-              { id: "gpt-4o", object: "model" },
-              { id: "gpt-4o-mini", object: "model" },
-            ],
-          }),
-          { status: 200 },
-        ),
+        new Response(JSON.stringify({ data: [{ id: "gpt-4o" }, { id: "gpt-4o-mini" }] }), { status: 200 }),
       )
     const original = globalThis.fetch
     globalThis.fetch = fetchMock as any
     try {
-      const result = await detectModels({
-        baseURL: "https://api.example.com/v1",
-        apiKey: "sk-test",
-        headers: {},
-      })
+      const result = await detectModels({ baseURL: "https://api.example.com/v1", apiKey: "k", headers: {} })
       if (!result.ok) throw new Error(result.error)
-      expect(result.models.length).toBe(2)
-      expect(result.models.every((m) => m.chatSupported)).toBe(true)
-      expect(result.models.every((m) => m.selected)).toBe(true)
+      expect(result.models).toEqual([
+        { id: "gpt-4o", selected: false, npm: "@ai-sdk/openai-compatible", note: undefined },
+        { id: "gpt-4o-mini", selected: false, npm: "@ai-sdk/openai-compatible", note: undefined },
+      ])
     } finally {
       globalThis.fetch = original
     }
   })
 
-  test("flags Anthropic-only models as not chat-supported", async () => {
-    const fetchMock = (..._: any[]) =>
+  test("routes claude_native to @ai-sdk/anthropic and chat to openai-compatible", async () => {
+    const fetchMock = () =>
       Promise.resolve(
         new Response(
           JSON.stringify({
             data: [
               { id: "gpt-5.5-qianli", support_apis: [{ id: "chat" }] },
               { id: "claude-opus-4-7-qianli", support_apis: [{ id: "claude_native" }] },
+              { id: "kimi-k2.6-qianli", support_apis: [{ id: "chat" }, { id: "claude_native" }] },
             ],
           }),
           { status: 200 },
@@ -141,18 +135,16 @@ describe("detectModels", () => {
     const original = globalThis.fetch
     globalThis.fetch = fetchMock as any
     try {
-      const result = await detectModels({
-        baseURL: "https://stepcode.basemind.com/v1",
-        apiKey: "sk-test",
-        headers: {},
-      })
+      const result = await detectModels({ baseURL: "https://stepcode.basemind.com/v1", apiKey: "k", headers: {} })
       if (!result.ok) throw new Error(result.error)
       const byId = Object.fromEntries(result.models.map((m) => [m.id, m]))
-      expect(byId["gpt-5.5-qianli"].chatSupported).toBe(true)
-      expect(byId["gpt-5.5-qianli"].selected).toBe(true)
-      expect(byId["claude-opus-4-7-qianli"].chatSupported).toBe(false)
-      expect(byId["claude-opus-4-7-qianli"].selected).toBe(false)
-      expect(byId["claude-opus-4-7-qianli"].reason).toContain("Anthropic")
+      expect(byId["gpt-5.5-qianli"].npm).toBe("@ai-sdk/openai-compatible")
+      expect(byId["claude-opus-4-7-qianli"].npm).toBe("@ai-sdk/anthropic")
+      expect(byId["claude-opus-4-7-qianli"].note).toBe("Anthropic protocol")
+      // Both protocols supported → prefer openai-compatible for tooling uniformity
+      expect(byId["kimi-k2.6-qianli"].npm).toBe("@ai-sdk/openai-compatible")
+      // Nothing pre-selected
+      expect(result.models.every((m) => m.selected === false)).toBe(true)
     } finally {
       globalThis.fetch = original
     }
@@ -163,11 +155,7 @@ describe("detectModels", () => {
     const original = globalThis.fetch
     globalThis.fetch = fetchMock as any
     try {
-      const result = await detectModels({
-        baseURL: "https://api.example.com/v1",
-        apiKey: "bad",
-        headers: {},
-      })
+      const result = await detectModels({ baseURL: "https://api.example.com/v1", apiKey: "bad", headers: {} })
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.error).toContain("401")
     } finally {
