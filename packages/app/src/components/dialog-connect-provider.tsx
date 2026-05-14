@@ -425,11 +425,11 @@ export function DialogConnectProvider(props: { provider: string }) {
           <Match when={provider().id === "shrimpai"}>
             <div class="flex flex-col gap-4">
               <div class="text-14-regular text-text-base">
-                Sign in at{" "}
-                <Link href="https://shrimpai.cc/auth" tabIndex={-1}>
+                Get your API key at{" "}
+                <Link href="https://shrimpai.cc" tabIndex={-1}>
                   shrimpai.cc
-                </Link>{" "}
-                and copy your API key to access GPT, Claude, KIMI, GLM and more — billed through a single subscription.
+                </Link>
+                {" "}and paste it below to access GPT, Claude, KIMI, GLM and more.
               </div>
             </div>
           </Match>
