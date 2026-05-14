@@ -65,6 +65,12 @@ export const DialogSelectProvider: Component = () => {
           <div class="px-1.25 w-full flex items-center gap-x-3">
             <ProviderIcon data-slot="list-item-extra-icon" id={i.id} />
             <span>{i.name}</span>
+            <Show when={i.id === "shrimpai"}>
+              <div class="text-14-regular text-text-weak">Shrimpai unified gateway</div>
+            </Show>
+            <Show when={i.id === "shrimpai"}>
+              <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
+            </Show>
             <Show when={i.id === "opencode"}>
               <div class="text-14-regular text-text-weak">{language.t("dialog.provider.opencode.tagline")}</div>
             </Show>

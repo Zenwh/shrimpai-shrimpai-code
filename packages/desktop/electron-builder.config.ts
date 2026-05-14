@@ -26,6 +26,8 @@ const channel = (() => {
   return "dev"
 })()
 
+const isLocalBuild = process.env.SHRIMPAI_LOCAL_BUILD === "1" || process.env.GITHUB_ACTIONS !== "true"
+
 const getBase = (): Configuration => ({
   artifactName: "shrimpai-code-${os}-${arch}.${ext}",
   directories: {
@@ -43,15 +45,16 @@ const getBase = (): Configuration => ({
   mac: {
     category: "public.app-category.developer-tools",
     icon: `resources/icons/icon.icns`,
-    hardenedRuntime: true,
+    hardenedRuntime: !isLocalBuild,
     gatekeeperAssess: false,
-    entitlements: "resources/entitlements.plist",
-    entitlementsInherit: "resources/entitlements.plist",
-    notarize: true,
+    entitlements: isLocalBuild ? undefined : "resources/entitlements.plist",
+    entitlementsInherit: isLocalBuild ? undefined : "resources/entitlements.plist",
+    notarize: isLocalBuild ? false : true,
+    identity: isLocalBuild ? null : undefined,
     target: ["dmg", "zip"],
   },
   dmg: {
-    sign: true,
+    sign: !isLocalBuild,
   },
   protocols: {
     name: "Shrimpai Code",

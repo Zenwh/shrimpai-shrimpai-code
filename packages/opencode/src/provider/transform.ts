@@ -44,6 +44,11 @@ function sdkKey(npm: string): string | undefined {
       return "gateway"
     case "@openrouter/ai-sdk-provider":
       return "openrouter"
+    case "@ai-sdk/openai-compatible":
+      // Generic OpenAI-compatible wrapper (used by shrimpai and other gateways).
+      // Remap providerID-scoped providerOptions to the canonical openaiCompatible
+      // key so cache_control / extra_body fields actually reach the wire request.
+      return "openaiCompatible"
     case "ai-gateway-provider":
       // ai-gateway-provider/unified wraps createOpenAICompatible({ name: "Unified" }),
       // and @ai-sdk/openai-compatible parses compatibleOptions from one of
