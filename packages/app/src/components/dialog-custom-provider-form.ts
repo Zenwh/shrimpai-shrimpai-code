@@ -1,5 +1,12 @@
 const PROVIDER_ID = /^[a-z0-9][a-z0-9-_]*$/
 const OPENAI_COMPATIBLE = "@ai-sdk/openai-compatible"
+const ANTHROPIC = "@ai-sdk/anthropic"
+
+export type Protocol = "openai" | "anthropic"
+const PROTOCOL_TO_NPM: Record<Protocol, string> = {
+  openai: OPENAI_COMPATIBLE,
+  anthropic: ANTHROPIC,
+}
 
 type Translator = (key: string, vars?: Record<string, string | number | boolean>) => string
 
@@ -17,6 +24,14 @@ export type ModelRow = {
   row: string
   id: string
   name: string
+  /**
+   * Which AI SDK drives this model at request time.
+   *   "openai"    -> @ai-sdk/openai-compatible -> POST <base>/chat/completions
+   *   "anthropic" -> @ai-sdk/anthropic         -> POST <base>/messages
+   * Each SDK appends its own path to the shared baseURL and sets its own
+   * auth header; we never translate request bodies between protocols.
+   */
+  protocol: Protocol
   err: ModelErr
 }
 
@@ -92,7 +107,18 @@ export function validateCustomProvider(input: ValidateArgs) {
     return { id: idError, name: nameError }
   })
   const modelsValid = models.every((m) => !m.id && !m.name)
-  const modelConfig = Object.fromEntries(input.form.models.map((m) => [m.id.trim(), { name: m.name.trim() }]))
+  // Stamp per-model SDK only when the row diverges from the provider-level
+  // default (openai-compatible). Keeps the on-disk config minimal.
+  const modelConfig = Object.fromEntries(
+    input.form.models.map((m) => {
+      const trimmedId = m.id.trim()
+      const trimmedName = m.name.trim()
+      if (m.protocol === "anthropic") {
+        return [trimmedId, { name: trimmedName, provider: { npm: ANTHROPIC } }]
+      }
+      return [trimmedId, { name: trimmedName }]
+    }),
+  )
 
   const seenHeaders = new Set<string>()
   const headers = input.form.headers.map((h) => {
@@ -150,9 +176,12 @@ export function validateCustomProvider(input: ValidateArgs) {
   }
 }
 
+// Retained for backward compatibility with callers; not used inside validator.
+export { PROTOCOL_TO_NPM }
+
 let row = 0
 
 const nextRow = () => `row-${row++}`
 
-export const modelRow = (): ModelRow => ({ row: nextRow(), id: "", name: "", err: {} })
+export const modelRow = (): ModelRow => ({ row: nextRow(), id: "", name: "", protocol: "openai", err: {} })
 export const headerRow = (): HeaderRow => ({ row: nextRow(), key: "", value: "", err: {} })

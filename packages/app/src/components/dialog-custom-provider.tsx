@@ -12,7 +12,7 @@ import { Link } from "@/components/link"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
-import { type FormState, headerRow, modelRow, validateCustomProvider } from "./dialog-custom-provider-form"
+import { type FormState, headerRow, modelRow, type Protocol, validateCustomProvider } from "./dialog-custom-provider-form"
 import { DialogSelectProvider } from "./dialog-select-provider"
 
 type Props = {
@@ -92,6 +92,10 @@ export function DialogCustomProvider(props: Props) {
       setForm("models", index, key, value)
       setForm("models", index, "err", key, undefined)
     })
+  }
+
+  const setModelProtocol = (index: number, value: Protocol) => {
+    setForm("models", index, "protocol", value)
   }
 
   const setHeader = (index: number, key: "key" | "value", value: string) => {
@@ -252,6 +256,16 @@ export function DialogCustomProvider(props: Props) {
                       error={m.err.name}
                     />
                   </div>
+                  <select
+                    class="text-14-regular text-text-strong bg-surface-base border border-border-weak-base rounded-md h-9 px-2 mt-0.5 cursor-pointer hover:border-border-hover focus:outline-none focus:border-border-focus"
+                    value={m.protocol}
+                    onChange={(e) => setModelProtocol(i(), (e.currentTarget as HTMLSelectElement).value as Protocol)}
+                    aria-label={language.t("provider.custom.models.protocol.label")}
+                    title={language.t("provider.custom.models.protocol.label")}
+                  >
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                  </select>
                   <IconButton
                     type="button"
                     icon="trash"
