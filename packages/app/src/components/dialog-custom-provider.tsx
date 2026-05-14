@@ -1,18 +1,25 @@
 import { Button } from "@opencode-ai/ui/button"
+import { Checkbox } from "@opencode-ai/ui/checkbox"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
+import { Spinner } from "@opencode-ai/ui/spinner"
 import { useMutation } from "@tanstack/solid-query"
 import { TextField } from "@opencode-ai/ui/text-field"
 import { showToast } from "@opencode-ai/ui/toast"
-import { batch, For } from "solid-js"
+import { batch, createMemo, For, Show } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { Link } from "@/components/link"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
-import { type FormState, headerRow, modelRow, validateCustomProvider } from "./dialog-custom-provider-form"
+import {
+  detectModels,
+  type FormState,
+  headerRow,
+  validateCustomProvider,
+} from "./dialog-custom-provider-form"
 import { DialogSelectProvider } from "./dialog-select-provider"
 
 type Props = {
@@ -30,7 +37,9 @@ export function DialogCustomProvider(props: Props) {
     name: "",
     baseURL: "",
     apiKey: "",
-    models: [modelRow()],
+    detected: [],
+    detectStatus: "idle",
+    detectError: undefined,
     headers: [headerRow()],
     err: {},
   })
@@ -41,25 +50,6 @@ export function DialogCustomProvider(props: Props) {
       return
     }
     dialog.show(() => <DialogSelectProvider />)
-  }
-
-  const addModel = () => {
-    setForm(
-      "models",
-      produce((rows) => {
-        rows.push(modelRow())
-      }),
-    )
-  }
-
-  const removeModel = (index: number) => {
-    if (form.models.length <= 1) return
-    setForm(
-      "models",
-      produce((rows) => {
-        rows.splice(index, 1)
-      }),
-    )
   }
 
   const addHeader = () => {
@@ -82,15 +72,17 @@ export function DialogCustomProvider(props: Props) {
   }
 
   const setField = (key: "providerID" | "name" | "baseURL" | "apiKey", value: string) => {
-    setForm(key, value)
-    if (key === "apiKey") return
-    setForm("err", key, undefined)
-  }
-
-  const setModel = (index: number, key: "id" | "name", value: string) => {
     batch(() => {
-      setForm("models", index, key, value)
-      setForm("models", index, "err", key, undefined)
+      setForm(key, value)
+      if (key === "baseURL" || key === "apiKey") {
+        // Invalidate detection results — user must re-run detection.
+        if (form.detectStatus !== "idle") {
+          setForm("detectStatus", "idle")
+          setForm("detected", [])
+          setForm("detectError", undefined)
+        }
+      }
+      if (key !== "apiKey") setForm("err", key, undefined)
     })
   }
 
@@ -101,6 +93,59 @@ export function DialogCustomProvider(props: Props) {
     })
   }
 
+  const detect = async () => {
+    if (form.detectStatus === "loading") return
+    setForm("detectStatus", "loading")
+    setForm("detectError", undefined)
+    setForm("err", "detected", undefined)
+
+    const headerMap: Record<string, string> = {}
+    for (const h of form.headers) {
+      const k = h.key.trim()
+      const v = h.value.trim()
+      if (k && v) headerMap[k] = v
+    }
+
+    const result = await detectModels({
+      baseURL: form.baseURL,
+      apiKey: form.apiKey,
+      headers: headerMap,
+    })
+
+    if (!result.ok) {
+      batch(() => {
+        setForm("detectStatus", "error")
+        setForm("detectError", result.error)
+        setForm("detected", [])
+      })
+      return
+    }
+    batch(() => {
+      setForm("detectStatus", "ok")
+      setForm("detected", result.models)
+    })
+  }
+
+  const toggleSelected = (idx: number) => {
+    const item = form.detected[idx]
+    if (!item || !item.chatSupported) return
+    setForm("detected", idx, "selected", !item.selected)
+  }
+
+  const setAllSelected = (value: boolean) => {
+    setForm(
+      "detected",
+      produce((arr) => {
+        for (const m of arr) {
+          if (m.chatSupported) m.selected = value
+        }
+      }),
+    )
+  }
+
+  const supportedCount = createMemo(() => form.detected.filter((m) => m.chatSupported).length)
+  const selectedCount = createMemo(() => form.detected.filter((m) => m.selected && m.chatSupported).length)
+
   const validate = () => {
     const output = validateCustomProvider({
       form,
@@ -110,7 +155,6 @@ export function DialogCustomProvider(props: Props) {
     })
     batch(() => {
       setForm("err", output.err)
-      output.models.forEach((err, index) => setForm("models", index, "err", err))
       output.headers.forEach((err, index) => setForm("headers", index, "err", err))
     })
     return output.result
@@ -160,6 +204,8 @@ export function DialogCustomProvider(props: Props) {
     if (!result) return
     saveMutation.mutate(result)
   }
+
+  const canDetect = () => !!form.baseURL.trim() && form.detectStatus !== "loading"
 
   return (
     <Dialog
@@ -226,47 +272,87 @@ export function DialogCustomProvider(props: Props) {
           </div>
 
           <div class="flex flex-col gap-3">
-            <label class="text-12-medium text-text-weak">{language.t("provider.custom.models.label")}</label>
-            <For each={form.models}>
-              {(m, i) => (
-                <div class="flex gap-2 items-start" data-row={m.row}>
-                  <div class="flex-1">
-                    <TextField
-                      label={language.t("provider.custom.models.id.label")}
-                      hideLabel
-                      placeholder={language.t("provider.custom.models.id.placeholder")}
-                      value={m.id}
-                      onChange={(v) => setModel(i(), "id", v)}
-                      validationState={m.err.id ? "invalid" : undefined}
-                      error={m.err.id}
-                    />
-                  </div>
-                  <div class="flex-1">
-                    <TextField
-                      label={language.t("provider.custom.models.name.label")}
-                      hideLabel
-                      placeholder={language.t("provider.custom.models.name.placeholder")}
-                      value={m.name}
-                      onChange={(v) => setModel(i(), "name", v)}
-                      validationState={m.err.name ? "invalid" : undefined}
-                      error={m.err.name}
-                    />
-                  </div>
-                  <IconButton
-                    type="button"
-                    icon="trash"
-                    variant="ghost"
-                    class="mt-1.5"
-                    onClick={() => removeModel(i())}
-                    disabled={form.models.length <= 1}
-                    aria-label={language.t("provider.custom.models.remove")}
-                  />
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <label class="text-12-medium text-text-weak">Models</label>
+              <Show when={form.detectStatus === "ok" && supportedCount() > 1}>
+                <div class="flex gap-3">
+                  <Button type="button" size="small" variant="ghost" onClick={() => setAllSelected(true)}>
+                    Select all
+                  </Button>
+                  <Button type="button" size="small" variant="ghost" onClick={() => setAllSelected(false)}>
+                    Clear
+                  </Button>
                 </div>
-              )}
-            </For>
-            <Button type="button" size="small" variant="ghost" icon="plus-small" onClick={addModel} class="self-start">
-              {language.t("provider.custom.models.add")}
+              </Show>
+            </div>
+            <Button
+              type="button"
+              size="large"
+              variant="secondary"
+              icon={form.detectStatus === "loading" ? undefined : "magnifying-glass"}
+              disabled={!canDetect()}
+              onClick={detect}
+              class="self-start"
+            >
+              <Show when={form.detectStatus === "loading"} fallback={<>Detect models</>}>
+                <span class="flex items-center gap-2">
+                  <Spinner />
+                  Detecting…
+                </span>
+              </Show>
             </Button>
+
+            <Show when={form.detectStatus === "error" && form.detectError}>
+              <p class="text-12-regular text-text-error">{form.detectError}</p>
+            </Show>
+
+            <Show when={form.detectStatus === "ok" && form.detected.length === 0}>
+              <p class="text-12-regular text-text-weak">
+                Server returned no models. Check the base URL and API key.
+              </p>
+            </Show>
+
+            <Show when={form.detectStatus === "ok" && form.detected.length > 0}>
+              <div class="text-12-regular text-text-weak">
+                Found {form.detected.length} model{form.detected.length === 1 ? "" : "s"} ({selectedCount()} selected
+                {supportedCount() < form.detected.length
+                  ? `, ${form.detected.length - supportedCount()} unsupported`
+                  : ""}
+                )
+              </div>
+              <div class="flex flex-col gap-2 max-h-64 overflow-y-auto border border-border-weak-base rounded-md p-3">
+                <For each={form.detected}>
+                  {(m, i) => (
+                    <div class="flex items-center gap-3" data-row={m.id}>
+                      <Checkbox
+                        checked={m.selected}
+                        readOnly={!m.chatSupported}
+                        onChange={() => toggleSelected(i())}
+                      >
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
+                          <span
+                            class="text-14-regular break-all"
+                            classList={{
+                              "text-text-strong": m.chatSupported,
+                              "text-text-weak": !m.chatSupported,
+                            }}
+                          >
+                            {m.id}
+                          </span>
+                          <Show when={!m.chatSupported && m.reason}>
+                            <span class="text-12-regular text-text-weak">— {m.reason}</span>
+                          </Show>
+                        </div>
+                      </Checkbox>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+
+            <Show when={form.err.detected}>
+              <p class="text-12-regular text-text-error">{form.err.detected}</p>
+            </Show>
           </div>
 
           <div class="flex flex-col gap-3">
